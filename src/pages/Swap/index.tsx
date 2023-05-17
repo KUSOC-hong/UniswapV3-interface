@@ -65,6 +65,16 @@ import { computeFiatValuePriceImpact } from '../../utils/computeFiatValuePriceIm
 import { maxAmountSpend } from '../../utils/maxAmountSpend'
 import { computeRealizedPriceImpact, warningSeverity } from '../../utils/prices'
 import { supportedChainId } from '../../utils/supportedChainId'
+
+/* 
+1. SwapSection은 relative로 설정되어 있어, 자식 요소들이 absolute로 설정되었을 때, SwapSection의 위치를 기준으로 설정됩니다.
+2. SwapSection에도 border-radius: 12px;이 설정되어 있어, 자식 요소들도 border-radius: 12px;로 설정되었을 때, SwapSection의 border-radius를 상속받습니다.
+3. &:before는 SwapSection의 가상의 요소입니다. content: '';을 설정했기 때문에, SwapSection의 내용이 비어있는 상태여야 합니다.
+4. &:before는 SwapSection의 가장 앞에 위치하게 됩니다.
+5. &:before는 pointer-events: none;을 설정했기 때문에, SwapSection의 요소들은 &:before의 영향을 받지 않습니다.
+6. &:before는 border: 1px solid ${({ theme }) => theme.backgroundModule};을 설정했기 때문에, SwapSection의 외곽선이 설정됩니다.
+7. &:hover:before는 &:before의 영향을 받지 않기 때문에, &:before의 border-color: ${({ theme }) => theme.backgroundModule};이 설정됩니다.
+8. &:focus-within:before는 SwapSection이 포커스를 받았을 때, &:before의 border-color: ${({ theme }) => theme.backgroundModule};이 설정됩니다. */
 const ArrowContainer = styled.div`
   display: inline-block;
   display: inline-flex;
@@ -122,6 +132,8 @@ const DetailsSwapSection = styled(SwapSection)`
   border-top-right-radius: 0;
 `
 
+//  1. swapInputError가 존재하고 trade가 존재하면서 tradeState가 VALID 또는 SYNCING 상태일 때,
+//     즉, 스왑이 가능한 상태일 때 true를 반환한다.
 function getIsValidSwapQuote(
   trade: InterfaceTrade<Currency, Currency, TradeType> | undefined,
   tradeState: TradeState,
@@ -129,6 +141,12 @@ function getIsValidSwapQuote(
 ): boolean {
   return !!swapInputError && !!trade && (tradeState === TradeState.VALID || tradeState === TradeState.SYNCING)
 }
+
+/*
+2. 만약, a와 b가 모두 존재하고, a가 b보다 크면 a를 반환하고, 아니라면 b를 반환한다.
+3. 만약, a만 존재한다면 a를 반환하고, b만 존재한다면 b를 반환한다.
+4. 만약, a와 b가 모두 존재하지 않는다면 undefined를 반환한다.
+5. 2, 3, 4번에서 a와 b는 Percent 타입을 가진다. */
 
 function largerPercentValue(a?: Percent, b?: Percent) {
   if (a && b) {
@@ -142,6 +160,18 @@ function largerPercentValue(a?: Percent, b?: Percent) {
 }
 
 const TRADE_STRING = 'SwapRouter'
+
+/* 
+1. useWeb3React()을 통해 connected chain id를 받아온다.
+2. useDefaultsFromURLSearch()를 통해 url parameter를 받아온다.
+3. Swap 컴포넌트를 렌더링한다.
+4. NetworkAlert 컴포넌트를 렌더링한다.
+5. SwitchLocaleLink 컴포넌트를 렌더링한다.
+6. Trace 컴포넌트를 렌더링한다.
+7. 이 페이지는 최초 로드시 default 값이 없으므로, 1번에서 받아온 connected chain id에 따라서 각각의 컴포넌트들이 어떻게 렌더링되는지 확인한다.
+8. 두번째로, url parameter가 있을 경우에는, 2번에서 받아온 url parameter에 따라서 각각의 컴포넌트들이 어떻게 렌더링되는지 확인한다.
+9. 마지막으로, 1번과 2번을 통해 받아온 값들을 이용해서 Swap 컴포넌트가 어떻게 렌더링되는지 확인한다.
+10. 그리고 마지막으로, 6번을 통해 받아온 값들을 이용해서 Trace 컴포넌트가 어떻게 렌더링되는지 확인한다. */
 
 export default function SwapPage({ className }: { className?: string }) {
   const { chainId: connectedChainId } = useWeb3React()
@@ -173,6 +203,15 @@ export default function SwapPage({ className }: { className?: string }) {
  * However if this component is being used in a context that displays information from a different, unconnected
  * chain (e.g. the TDP), then chainId should refer to the unconnected chain.
  */
+/* 
+1. useCurrency는 currencyId를 통해 Currency 객체를 반환한다.
+2. useCurrency는 Currency 객체를 반환한다.
+3. useCurrency는 token을 반환한다.
+4. 이 token들은 urlLoadedTokens에 들어가게 된다.
+5. urlLoadedTokens는 useMemo를 통해 value가 변경될 때마다 재생성되는 배열이다.
+6. urlLoadedTokens는 loadedInputCurrency, loadedOutputCurrency를 filter하여 생성된 배열이다.
+*/
+
 export function Swap({
   className,
   prefilledState = {},
@@ -213,6 +252,11 @@ export function Swap({
   }, [])
 
   // dismiss warning if all imported tokens are in active lists
+  /* 
+1. urlLoadedTokens: url에서 가져온 토큰을 저장한다.
+2. urlLoadedTokens를 defaultTokens와 비교하여, defaultTokens에 존재하지 않는 토큰만 importTokensNotInDefault에 저장한다.
+3. importTokensNotInDefault를 TOKEN_SHORTHANDS를 사용해 비교하여, shorthand에 해당하는 토큰이 존재하면 importTokensNotInDefault에 저장하지 않는다.
+4. importTokensNotInDefault에 토큰이 존재하면, warning을 보여준다. */
   const defaultTokens = useDefaultActiveTokens(chainId)
   const importTokensNotInDefault = useMemo(
     () =>
@@ -238,14 +282,20 @@ export function Swap({
   // toggle wallet when disconnected
   const toggleWalletDrawer = useToggleAccountDrawer()
 
+  /* 
+  1. import에 필요한 것들을 불러옴. 
+  2. import한 것들을 각각의 이름으로 정리함.
+  */
   // for expert mode
   const [isExpertMode] = useExpertModeManager()
   // swap state
+  // 3. useReducer를 사용하여, swapReducer를 실행하고, 초기값을 넣어줌.
   const [state, dispatch] = useReducer(swapReducer, { ...initialSwapState, ...prefilledState })
   const { typedValue, recipient, independentField } = state
-
+  // 4. usePrevious를 사용하여, 이전의 값들을 저장함.
   const previousConnectedChainId = usePrevious(connectedChainId)
   const previousPrefilledState = usePrevious(prefilledState)
+  // 5. useEffect를 사용하여, 이전값들이 바뀌었을 때, 실행할 것을 정의함. 
   useEffect(() => {
     const combinedInitialState = { ...initialSwapState, ...prefilledState }
     const chainChanged = previousConnectedChainId && previousConnectedChainId !== connectedChainId
